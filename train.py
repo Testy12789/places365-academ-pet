@@ -3,6 +3,7 @@ from torchvision.datasets import Places365
 from torchvision import transforms, models
 from torch.utils.data import DataLoader
 from plot import plot_train
+from timer import timed_input
 from torch import optim
 import torch.nn as nn
 from tqdm import tqdm
@@ -18,7 +19,7 @@ config = {
     "WEIGHT_DECAY": 1e-2,
     "AUG": "cutmix",
     "CUTMIX_ALPHA": 1.0,
-    "PATH_DS": "path/to/places365",
+    "PATH_DS": "/home/testy/Programing/datasets/places365",
     "LOGS_F": "logs/metrics_first_stage.json",
     "LOGS_S": "logs/metrics_second_stage.json",
     "TARGET": "precision",
@@ -27,11 +28,11 @@ config = {
     "PATIENCE": 8, 
     "NO_IMPROVE": 0,
     "MIN_DELTA": 0.01,
-    "SAVE_WEIGHTS": True,
+    "SAVE_WEIGHTS": False,
     "DEVICE": torch.device("cuda" if torch.cuda.is_available() else "cpu")
 }
 
-# ============================ CUTMIX UTILS ======================
+# ================== CUTMIX UTILS ============
 def cutmix_collate(batch):
     alpha = config.get("CUTMIX_ALPHA", 1.0)
     imgs = torch.stack([item[0] for item in batch])
@@ -42,7 +43,7 @@ def cutmix_collate(batch):
     index = torch.randperm(batch_size)
 
     y_a, y_b = labels, labels[index]
-    # прямоугольник
+    # rectangle
     W, H = imgs.size(2), imgs.size(3)
     cut_rat = np.sqrt(1. - lam)
     cut_w = int(W * cut_rat)
@@ -64,7 +65,7 @@ def cutmix_criterion(criterion, pred, y_a, y_b, lam):
     """cutmix loss on batch"""
     return lam * criterion(pred, y_a) + (1 - lam) * criterion(pred, y_b)
 
-# ==================== DATA =========================
+# ============= DATA ===============
 train_tf = transforms.Compose([
     transforms.Resize((224, 224)),
     transforms.RandomHorizontalFlip(),
@@ -88,6 +89,7 @@ val_tf = transforms.Compose([
 train_ds = Places365(root= config["PATH_DS"], split= "train-standard", transform= train_tf, download= True)
 val_ds = Places365(root= config["PATH_DS"], split= "val", transform= val_tf, download= True)
 
+# ========= LOADERS ==============
 def make_train_loader():
     return DataLoader(
         train_ds,
@@ -123,7 +125,7 @@ scaler = torch.amp.GradScaler()
 
 # ======================= TRAIN / VALIDATION ===============================
 def train_epoch(model, optim, loader, criterion, device, cur_epoch, epochs, scaler):
-    """ 1 проход с cutmix"""
+    """ 1 pass with CutMix"""
     model.train()
     running_loss = 0.0
     for imgs, y_a, y_b, lam in tqdm(loader, desc= f"Epoch[{cur_epoch+1}/{epochs}]", ascii= "-#", ncols= 120):
@@ -146,7 +148,7 @@ def train_epoch(model, optim, loader, criterion, device, cur_epoch, epochs, scal
     return train_loss
 
 def validate(model, loader, criterion, device):
-        """ Валидация """
+        """ Validation """
         model.eval()
         corect, total, running_loss = 0.0, 0.0, 0.0
         all_labels, all_probs, all_preds = [], [], []
@@ -177,9 +179,9 @@ def validate(model, loader, criterion, device):
 
             return val_loss, acc, recal, f1, prec
 
-# ====================== EARLY STOP ================================ 
+# ============= EARLY STOP ==================== 
 def stop(model, target, config):
-    """ Early stop с сохранением весов """
+    """ Early stop with checkpoint """
     STOP = False
     best_target = config["BEST_TARGET"]
     no_improve = config["NO_IMPROVE"]
@@ -205,7 +207,7 @@ def stop(model, target, config):
     return STOP
 
 def train_stage(model, config, log_path,stage, optimizer, scheduler, train_loader, val_loader):
-    """ Проход 1 стадии"""
+    """ 1 stage pass """
     for epoch in range(config["EPOCHS"]//2):
             train_loss = train_epoch(model, optimizer, train_loader, criterion, config["DEVICE"], epoch, config["EPOCHS"], scaler)
             scheduler.step()
@@ -245,12 +247,12 @@ def train_stage(model, config, log_path,stage, optimizer, scheduler, train_loade
             
             if metrics[config["TARGET"]] > 0.25 and (epoch+1 >= 1):
                 try:
-                    choice = input("➡ Достигнут разумный acc. Перейти к Stage 2? [y/N]: ").strip().lower()
+                    choice = timed_input(f"➡ Достигнут разумный {config["TARGET"]}. Перейти к Stage 2? [y/N]: ", timeout= 10).strip().lower()
                 except KeyboardInterrupt:
                     choice = "n"
                 if choice == "y":
                     print("\n➡ Переход к Stage 2...\n")
-                    """ Пересоздаем loader'ы """
+                    """ Recreating loaders """
                     try:
                         if hasattr(train_loader, "_iterator") and train_loader._iterator is not None:
                             train_loader._iterator._shutdown_workers()
