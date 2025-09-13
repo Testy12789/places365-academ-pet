@@ -19,7 +19,7 @@ config = {
     "WEIGHT_DECAY": 1e-2,
     "AUG": "cutmix",
     "CUTMIX_ALPHA": 1.0,
-    "PATH_DS": "/home/testy/Programing/datasets/places365",
+    "PATH_DS": "/path/to/places365",
     "LOGS_F": "logs/metrics_first_stage.json",
     "LOGS_S": "logs/metrics_second_stage.json",
     "TARGET": "precision",
