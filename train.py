@@ -28,7 +28,7 @@ config = {
     "PATIENCE": 8, 
     "NO_IMPROVE": 0,
     "MIN_DELTA": 0.01,
-    "SAVE_WEIGHTS": False,
+    "SAVE_WEIGHTS": True,
     "DEVICE": torch.device("cuda" if torch.cuda.is_available() else "cpu")
 }
 

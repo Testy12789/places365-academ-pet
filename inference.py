@@ -8,7 +8,7 @@ IMG_SIZE = 224
 NUM_CLASSES = 365
 
 # ================= MODEL =================
-model = models.efficientnet_b2(weights=None)
+model = models.efficientnet_b2(weights=models.EfficientNet_B2_Weights.IMAGENET1K_V1)
 model.classifier[1] = torch.nn.Linear(model.classifier[1].in_features, NUM_CLASSES)
 model.load_state_dict(torch.load("models/best.pth", map_location=DEVICE))
 model.to(DEVICE)
