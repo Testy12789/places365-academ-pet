@@ -35,6 +35,6 @@ def infer(image_path):
 
 # ================= EXAMPLE =================
 if __name__ == "__main__":
-    img_path = "exemple.jpg"
+    img_path = "exemple/sample.jpg"
     pred_class, confidence = infer(img_path)
     print(f"Predicted class: {pred_class}, Confidence: {confidence:.4f}")
