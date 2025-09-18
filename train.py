@@ -3,7 +3,6 @@ from torchvision.datasets import Places365
 from torchvision import transforms, models
 from torch.utils.data import DataLoader
 from plot import plot_train
-from timer import timed_input
 from torch import optim
 import torch.nn as nn
 from tqdm import tqdm
@@ -17,6 +16,7 @@ config = {
     "BATCH": 24,
     "LR": 1e-4,
     "WEIGHT_DECAY": 1e-2,
+    "STOOOOOP": "stop.flag",
     "AUG": "cutmix",
     "CUTMIX_ALPHA": 1.0,
     "PATH_DS": "/path/to/places365",
@@ -209,6 +209,23 @@ def stop(model, target, config):
 def train_stage(model, config, log_path,stage, optimizer, scheduler, train_loader, val_loader):
     """ 1 stage pass """
     for epoch in range(config["EPOCHS"]//2):
+            
+            if os.path.exists(config["STOOOOOP"]):
+                print(f"⛔️ Stop flag is active! Starting stage {stage+1}")
+                os.remove(config["STOOOOOP"])
+                try:
+                    if hasattr(train_loader, "_iterator") and train_loader._iterator is not None:
+                        train_loader._iterator._shutdown_workers()
+                    if hasattr(val_loader, "_iterator") and val_loader._iterator is not None:
+                        val_loader._iterator._shutdown_workers()
+                except Exception:
+                    pass
+
+                new_train_loader = make_train_loader()
+                new_val_loader = make_val_loader()
+                return None, new_train_loader, new_val_loader
+
+
             train_loss = train_epoch(model, optimizer, train_loader, criterion, config["DEVICE"], epoch, config["EPOCHS"], scaler)
             scheduler.step()
             val_loss, acc, recall, f1, prec = validate(model, val_loader, criterion, config["DEVICE"])
@@ -246,24 +263,19 @@ def train_stage(model, config, log_path,stage, optimizer, scheduler, train_loade
                  break
             
             if metrics[config["TARGET"]] > 0.25 and (epoch+1 >= 1):
+                print(f"\n➡ Достигнут разумный {config['TARGET']}. Переход к Stage 2...")
+                # Пересоздаем лоадеры для следующей стадии
                 try:
-                    choice = timed_input(f"➡ Достигнут разумный {config["TARGET"]}. Перейти к Stage 2? [y/N]: ", timeout= 10).strip().lower()
-                except KeyboardInterrupt:
-                    choice = "n"
-                if choice == "y":
-                    print("\n➡ Переход к Stage 2...\n")
-                    """ Recreating loaders """
-                    try:
-                        if hasattr(train_loader, "_iterator") and train_loader._iterator is not None:
-                            train_loader._iterator._shutdown_workers()
-                        if hasattr(val_loader, "_iterator") and val_loader._iterator is not None:
-                            val_loader._iterator._shutdown_workers()
-                    except Exception:
-                        pass
+                    if hasattr(train_loader, "_iterator") and train_loader._iterator is not None:
+                        train_loader._iterator._shutdown_workers()
+                    if hasattr(val_loader, "_iterator") and val_loader._iterator is not None:
+                        val_loader._iterator._shutdown_workers()
+                except Exception:
+                    pass
 
-                    new_train_loader = make_train_loader()
-                    new_val_loader = make_val_loader()
-                    return config["BEST_TARGET"], new_train_loader, new_val_loader
+                new_train_loader = make_train_loader()
+                new_val_loader = make_val_loader()
+                return config["BEST_TARGET"], new_train_loader, new_val_loader
 
             os.makedirs("models", exist_ok= True)
             torch.save(model.state_dict(), "models/last.pth")
