@@ -210,7 +210,7 @@ def train_stage(model, config, log_path,stage, optimizer, scheduler, train_loade
     """ 1 stage pass """
     for epoch in range(config["EPOCHS"]//2):
             
-            if os.path.exists(config["SKIP"]):
+            if config["SKIP"]:
                 print(f"⛔️ Stop flag is active! Starting stage {stage+1}")
                 config["SKIP"] = False
                 try:
