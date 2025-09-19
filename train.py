@@ -16,7 +16,7 @@ config = {
     "BATCH": 24,
     "LR": 1e-4,
     "WEIGHT_DECAY": 1e-2,
-    "STOOOOOP": "stop.flag",
+    "SKIP": True,
     "AUG": "cutmix",
     "CUTMIX_ALPHA": 1.0,
     "PATH_DS": "/path/to/places365",
@@ -210,9 +210,9 @@ def train_stage(model, config, log_path,stage, optimizer, scheduler, train_loade
     """ 1 stage pass """
     for epoch in range(config["EPOCHS"]//2):
             
-            if os.path.exists(config["STOOOOOP"]):
+            if os.path.exists(config["SKIP"]):
                 print(f"⛔️ Stop flag is active! Starting stage {stage+1}")
-                os.remove(config["STOOOOOP"])
+                config["SKIP"] = False
                 try:
                     if hasattr(train_loader, "_iterator") and train_loader._iterator is not None:
                         train_loader._iterator._shutdown_workers()
@@ -261,21 +261,6 @@ def train_stage(model, config, log_path,stage, optimizer, scheduler, train_loade
 
             if STOP:
                  break
-            
-            if metrics[config["TARGET"]] > 0.25 and (epoch+1 >= 1):
-                print(f"\n➡ Достигнут разумный {config['TARGET']}. Переход к Stage 2...")
-                # Пересоздаем лоадеры для следующей стадии
-                try:
-                    if hasattr(train_loader, "_iterator") and train_loader._iterator is not None:
-                        train_loader._iterator._shutdown_workers()
-                    if hasattr(val_loader, "_iterator") and val_loader._iterator is not None:
-                        val_loader._iterator._shutdown_workers()
-                except Exception:
-                    pass
-
-                new_train_loader = make_train_loader()
-                new_val_loader = make_val_loader()
-                return config["BEST_TARGET"], new_train_loader, new_val_loader
 
             os.makedirs("models", exist_ok= True)
             torch.save(model.state_dict(), "models/last.pth")
